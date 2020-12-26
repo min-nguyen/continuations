@@ -2,6 +2,8 @@
 
 module Continuations where
 
+import Control.Applicative
+
 -- | Trace
 data Trace a
   = Trace
@@ -34,7 +36,6 @@ runMaybeCPS m = (unMaybeCPS m) Just' (\() -> Nothing')
 
 -- app :: ((a -> r, () -> r) -> r) -> ((a -> b -> r, () -> r) -> r) -> ((b -> r, () -> r) -> r)
 
-
 instance Applicative MaybeCPS where
   pure a = MaybeCPS (\k_just k_nothing -> k_just a)
   -- mf        :: forall r. (a -> b -> r) -> r -> r
@@ -58,6 +59,13 @@ instance Monad MaybeCPS where
   (MaybeCPS mx) >>= f  =
     MaybeCPS (\k_just k_nothing ->
                 mx (\x -> unMaybeCPS (f x) k_just k_nothing) k_nothing)
+
+instance Alternative MaybeCPS where
+  empty = MaybeCPS (\k_just k_nothing -> k_nothing ())
+  (MaybeCPS mx) <|> (MaybeCPS my) =
+    MaybeCPS (\k_just k_nothing ->
+                mx (\x -> k_just x) (\() -> my (\y -> k_just y) k_nothing))
+
 
 -- | Either
 data Either' e a = Left' e | Right' a
