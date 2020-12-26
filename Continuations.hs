@@ -46,8 +46,18 @@ instance Applicative MaybeCPS where
   (MaybeCPS mf) <*> (MaybeCPS mx) =
     MaybeCPS (\k_just k_nothing ->
                 mf (\f -> mx (\x -> k_just (f x)) k_nothing) k_nothing)
-  -- We need to pass mf/mx two continuations each - one for the just case, and one for the nothing case
+  -- We need to pass mf & mx two continuations each - one for the just case, and one for the nothing case
 
+instance Monad MaybeCPS where
+  return               = pure
+  -- mx        :: forall r. (a -> r) -> r -> r
+  -- f         :: forall r. (a -> MaybeCPS b)
+  -- k_just    :: forall r. b -> r
+  -- k_nothing :: forall r. r
+  -- x         :: a
+  (MaybeCPS mx) >>= f  =
+    MaybeCPS (\k_just k_nothing ->
+                mx (\x -> unMaybeCPS (f x) k_just k_nothing) k_nothing)
 
 -- | Either
 data Either' e a = Left' e | Right' a
