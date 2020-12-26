@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DeriveFunctor, RankNTypes #-}
 
 module Continuations where
 
@@ -8,20 +8,46 @@ data Trace a
       { variables :: [Double],
         output    :: a,
         density   :: Double
-      }
+      } deriving Functor
 
-newtype TraceCPS a = TraceCPS { unTraceCPS :: forall r. ([Double] -> a -> Double -> r) -> r }
+newtype TraceCPS a = TraceCPS { unTraceCPS :: forall r. ([Double] -> a -> Double -> r) -> r } deriving Functor
 
 runTraceCPS :: TraceCPS a -> Trace a
 runTraceCPS m = (unTraceCPS m) Trace
 
--- | Maybe
-data Maybe' a = Just' a | Nothing'
+-- instance Applicative TraceCPS where
+--   pure x = TraceCPS { variables = [], output = x, density = 1 }
+--   tf <*> tx =
+--     TraceCPS
+--       { variables = variables tf ++ variables tx,
+--         output = output tf (output tx),
+--         density = density tf * density tx
+--       }
 
-newtype MaybeCPS a = MaybeCPS { unMaybeCPS :: forall r. (a -> r) -> (() -> r) -> r }
+-- | Maybe
+data Maybe' a = Just' a | Nothing' deriving Functor
+
+newtype MaybeCPS a = MaybeCPS { unMaybeCPS :: forall r. (a -> r) -> (() -> r) -> r } deriving Functor
 
 runMaybeCPS :: MaybeCPS a -> Maybe' a
 runMaybeCPS m = (unMaybeCPS m) Just' (\() -> Nothing')
+
+-- app :: ((a -> r, () -> r) -> r) -> ((a -> b -> r, () -> r) -> r) -> ((b -> r, () -> r) -> r)
+
+
+instance Applicative MaybeCPS where
+  pure a = MaybeCPS (\k_just k_nothing -> k_just a)
+  -- mf        :: forall r. (a -> b -> r) -> r -> r
+  -- mx        :: forall r. (a -> r)      -> r -> r
+  -- k_just    :: forall r. b -> r
+  -- k_nothing :: forall r. r
+  -- f         :: (a -> b)
+  -- x         :: a
+  (MaybeCPS mf) <*> (MaybeCPS mx) =
+    MaybeCPS (\k_just k_nothing ->
+                mf (\f -> mx (\x -> k_just (f x)) k_nothing) k_nothing)
+  -- We need to pass mf/mx two continuations each - one for the just case, and one for the nothing case
+
 
 -- | Either
 data Either' e a = Left' e | Right' a
