@@ -68,20 +68,50 @@ instance Alternative MaybeCPS where
 
 
 -- | Either
-data Either' e a = Left' e | Right' a
+data Either' e a = Left' e | Right' a deriving Functor
 
-newtype EitherCPS e a = EitherCPS { unEitherCPS :: forall r. (e -> r) -> (a -> r) -> r }
+newtype EitherCPS e a = EitherCPS { unEitherCPS :: forall r. (e -> r) -> (a -> r) -> r } deriving Functor
 
 runEitherCPS :: EitherCPS e a -> Either' e a
 runEitherCPS m = (unEitherCPS m) Left' Right'
 
--- | Writer
-newtype Writer' w a = Writer' { runWriter' :: (a, w) }
+instance Applicative (EitherCPS e) where
+  pure x = EitherCPS (\k_left k_right -> k_right x)
+  -- mf      :: forall r. (e -> r) -> (a -> b -> r) -> r
+  -- mx      :: forall r. (e -> r) -> (a -> r)      -> r
+  -- k_left  :: forall r. e -> r
+  -- k_right :: forall r. b -> r
+  -- f       :: a -> b
+  -- x       :: a
+  (EitherCPS mf) <*> (EitherCPS mx) =
+    EitherCPS (\k_left k_right ->
+                 mf k_left (\f -> mx k_left (\x -> k_right (f x))))
 
-newtype WriterCPS w a = WriterCPS { unWriterCPS :: forall r. (a -> w -> r) -> r}
+instance Monad (EitherCPS e) where
+  return = pure
+  (EitherCPS mx) >>= f =
+    EitherCPS (\k_left k_right ->
+                 mx k_left (\x -> unEitherCPS (f x) k_left k_right ))
+
+-- | Writer
+newtype Writer' w a = Writer' { runWriter' :: (a, w) } deriving Functor
+
+newtype WriterCPS w a = WriterCPS { unWriterCPS :: forall r. (a -> w -> r) -> r} deriving Functor
 
 runWriterCPS :: Monoid w => WriterCPS w a -> (a, w)
 runWriterCPS m = (unWriterCPS m) (\a w -> (a, w))
+
+instance Monoid w => Applicative (WriterCPS w) where
+  pure x = WriterCPS (\k -> k x mempty)
+  (WriterCPS mf) <*> (WriterCPS mx) =
+    WriterCPS (\k ->
+      mf (\f w1 -> mx (\x w2 -> k (f x) (w1 `mappend` w2))))
+
+instance Monoid w => Monad (WriterCPS w) where
+  return = pure
+  (WriterCPS mx) >>= f =
+    WriterCPS (\k ->
+      mx (\x w1 -> unWriterCPS (f x) (\x' w2 -> k x' (w1 `mappend` w2))))
 
 -- | Reader
 newtype Reader' env a = Reader' { runReader' :: env -> a }
