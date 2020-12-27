@@ -17,14 +17,17 @@ newtype TraceCPS a = TraceCPS { unTraceCPS :: forall r. ([Double] -> a -> Double
 runTraceCPS :: TraceCPS a -> Trace a
 runTraceCPS m = (unTraceCPS m) Trace
 
--- instance Applicative TraceCPS where
---   pure x = TraceCPS { variables = [], output = x, density = 1 }
---   tf <*> tx =
---     TraceCPS
---       { variables = variables tf ++ variables tx,
---         output = output tf (output tx),
---         density = density tf * density tx
---       }
+instance Applicative TraceCPS where
+  pure x = TraceCPS (\k -> k [] x 1)
+  (TraceCPS mf) <*> (TraceCPS mx) =
+    TraceCPS (\k ->
+      mf (\v f d -> mx (\v' x d' -> k (v ++ v') (f x) (d * d') ) ) )
+
+instance Monad TraceCPS where
+  return = pure
+  (TraceCPS mx) >>= f =
+    TraceCPS (\k ->
+      mx (\v x d -> (unTraceCPS $ f x) (\v' x' d' -> k (v ++ v') x' (d * d') ) ) )
 
 -- | Maybe
 data Maybe' a = Just' a | Nothing' deriving Functor
