@@ -114,12 +114,24 @@ instance Monoid w => Monad (WriterCPS w) where
       mx (\x w1 -> unWriterCPS (f x) (\x' w2 -> k x' (w1 `mappend` w2))))
 
 -- | Reader
-newtype Reader' env a = Reader' { runReader' :: env -> a }
+newtype Reader' env a = Reader' { runReader' :: env -> a } deriving Functor
 
-newtype ReaderCPS env a = ReaderCPS { unReaderCPS :: forall r. env -> (a -> r) -> r }
+newtype ReaderCPS env a = ReaderCPS { unReaderCPS :: forall r. env -> (a -> r) -> r } deriving Functor
 
 runReaderCPS :: Monoid env => ReaderCPS env a -> env -> a
 runReaderCPS m env = (unReaderCPS m) env (\a -> a)
+
+instance Applicative (ReaderCPS env) where
+  pure x = ReaderCPS (\env k -> k x)
+  (ReaderCPS mf) <*> (ReaderCPS mx) =
+    ReaderCPS (\env k ->
+      mf env (\f -> mx env (\x -> k (f x) ) ) )
+
+instance Monad (ReaderCPS env) where
+  return = pure
+  (ReaderCPS mx) >>= f =
+    ReaderCPS (\env k ->
+      mx env (\x -> (unReaderCPS $ f x) env k) )
 
 -- | State
 newtype State' s a = State' { runState' :: s -> (a, s) }
