@@ -134,12 +134,22 @@ instance Monad (ReaderCPS env) where
       mx env (\x -> (unReaderCPS $ f x) env k) )
 
 -- | State
-newtype State' s a = State' { runState' :: s -> (a, s) }
+newtype State' s a = State' { runState' :: s -> (a, s) } deriving Functor
 
-newtype StateCPS s a = StateCPS { unStateCPS :: forall r. s -> (a -> s -> r) -> r }
+newtype StateCPS s a = StateCPS { unStateCPS :: forall r. s -> (a -> s -> r) -> r } deriving Functor
 
 runStateCPS :: StateCPS s a -> s -> (a, s)
 runStateCPS m s = (unStateCPS m) s (\a s' -> (a, s))
+
+instance Applicative (StateCPS s) where
+  pure x = StateCPS (\s k -> k x s)
+  (StateCPS mf) <*> (StateCPS mx) =
+    StateCPS (\s k -> mf s (\f s' -> mx s' (\x s'' -> k (f x) s'')))
+
+instance Monad (StateCPS s) where
+  return = pure
+  (StateCPS mx) >>= f =
+    StateCPS (\s k -> mx s (\x s' -> (unStateCPS $ f x) s' k))
 
 -- | MaybeT
 newtype MaybeT' m a = MaybeT' { runMaybeT :: m (Maybe' a) }
